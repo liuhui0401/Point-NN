@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument('--ckpt_dir', type=str, default='./checkpoint/', help='path to save checkpoint (default: ckpt)')
     parser.add_argument('--msg', type=str, help='message after checkpoint')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size in training')
-    parser.add_argument('--model', default='Point_PN', help='model name')
+    parser.add_argument('--model', default='Point_PN_scan', help='model name')
     parser.add_argument('--epoch', default=300, type=int, help='number of epoch in training')
     parser.add_argument('--num_points', type=int, default=1024, help='point number')
     parser.add_argument('--learning_rate', default=0.002, type=float, help='learning rate in training')
@@ -127,9 +127,9 @@ def main():
     for epoch in range(start_epoch, args.epoch):
         printf('Epoch(%d/%s) Learning Rate %s:' % (epoch + 1, args.epoch, optimizer.param_groups[0]['lr']))
 
-        train_out = train(net, train_loader, optimizer, criterion, args.eps, device, args.model, args.num_points)
+        train_out = train(net, train_loader, optimizer, criterion, args.eps, device, args.num_points)
         
-        test_out = validate(net, test_loader, criterion, args.eps, device, args.model)
+        test_out = validate(net, test_loader, criterion, args.eps, device)
 
         scheduler.step(epoch)
 
@@ -173,8 +173,7 @@ def main():
     printf(f"++  Best Train acc: {best_train_acc} | Best Test acc: {best_test_acc}  ++")
     printf(f"++++++++" * 5)
 
-
-def train(net, trainloader, optimizer, criterion, device, eps, npoints=1024):
+def train(net, trainloader, optimizer, criterion, eps, device, npoints=1024):
     net.train()
     train_loss = 0
     correct = 0
