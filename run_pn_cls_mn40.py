@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('--num_points', type=int, default=1024, help='point number')
     parser.add_argument('--learning_rate', default=0.1, type=float, help='learning rate in training')
     parser.add_argument('--weight_decay', type=float, default=2e-4, help='decay rate')
-    parser.add_argument('--seed', type=int, help='random seed')
+    parser.add_argument('--seed', type=int, default=6212, help='random seed')
     parser.add_argument('--workers', default=8, type=int, help='workers')
     parser.add_argument('--optim', type=str, default="sgd", help='optimizer')
     parser.add_argument('--eps', type=float, default=0.4, help='smooth loss')
