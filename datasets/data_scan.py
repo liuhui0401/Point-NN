@@ -27,20 +27,17 @@ def fps(data, number):
 
 def load_scanobjectnn_data(split, partition):
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = BASE_DIR
 
     if split == 1:
-        DATA_DIR += '/../data/h5_files/main_split/'
+        DATA_DIR = BASE_DIR + '/../data/h5_files/main_split/'
         h5_name = DATA_DIR + partition + '_objectdataset.h5'
     elif split == 2:
-        DATA_DIR += '/../data/h5_files/main_split_nobg/'
+        DATA_DIR = BASE_DIR + '/../data/h5_files/main_split_nobg/'
         h5_name = DATA_DIR + partition + '_objectdataset.h5'
     elif split == 3:
-        DATA_DIR += '/../data/h5_files/main_split/'
+        DATA_DIR = BASE_DIR + '/../data/h5_files/main_split/'
         h5_name = DATA_DIR + partition + '_objectdataset_augmentedrot_scale75.h5'
 
-    DATA_DIR = '/home/server/Point-NN/PointNeXt/data/ScanObjectNN/h5_files/main_split/'
-    h5_name = DATA_DIR + partition + '_objectdataset_augmentedrot_scale75.h5'
     f = h5py.File(h5_name, mode="r")
     data = f['data'][:].astype('float32')
     label = f['label'][:].astype('int64')
