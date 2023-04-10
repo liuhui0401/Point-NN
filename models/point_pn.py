@@ -4,24 +4,7 @@ import torch.nn as nn
 from pointnet2_ops import pointnet2_utils
 
 from .model_utils import *
-import pdb
 
-
-def get_activation(activation):
-    if activation.lower() == 'gelu':
-        return nn.GELU()
-    elif activation.lower() == 'rrelu':
-        return nn.RReLU(inplace=True)
-    elif activation.lower() == 'selu':
-        return nn.SELU(inplace=True)
-    elif activation.lower() == 'silu':
-        return nn.SiLU(inplace=True)
-    elif activation.lower() == 'hardswish':
-        return nn.Hardswish(inplace=True)
-    elif activation.lower() == 'leakyrelu':
-        return nn.LeakyReLU(inplace=True)
-    else:
-        return nn.ReLU(inplace=True)
 
 
 # FPS + k-NN
@@ -49,7 +32,7 @@ class FPS_kNN(nn.Module):
 
 # Local Geometry Aggregation
 class LGA(nn.Module):
-    def __init__(self, out_dim, alpha, beta, block_num, dim_expansion, res_expansion, type):
+    def __init__(self, out_dim, alpha, beta, block_num, dim_expansion, type):
         super().__init__()
         self.type = type
         self.geo_extract = PosE_Geo(3, out_dim, alpha, beta)
@@ -57,11 +40,12 @@ class LGA(nn.Module):
             expand = 2
         elif dim_expansion == 2:
             expand = 1
-        self.linear1 = ConvBNReLU1D(out_dim * expand, out_dim, bias=False, activation='relu')
+        self.linear1 = Linear1Layer(out_dim * expand, out_dim, bias=False)
         self.linear2 = []
         for i in range(block_num):
-            self.linear2.append(ConvBNReLURes2D(out_dim, res_expansion=res_expansion, bias=True, activation='relu'))
+            self.linear2.append(Linear2Layer(out_dim, bias=True))
         self.linear2 = nn.Sequential(*self.linear2)
+
 
     def forward(self, lc_xyz, lc_x, knn_xyz, knn_x):
 
@@ -105,13 +89,13 @@ class Pooling(nn.Module):
         # Feature Aggregation (Pooling)
         lc_x = knn_x_w.max(-1)[0] + knn_x_w.mean(-1)
         return lc_x
+    
 
-
-# PosE for Raw-point Embedding 
-class ConvBNReLU1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=1, bias=True, activation='relu'):
-        super(ConvBNReLU1D, self).__init__()
-        self.act = get_activation(activation)
+# Linear layer 1
+class Linear1Layer(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=1, bias=True):
+        super(Linear1Layer, self).__init__()
+        self.act = nn.ReLU(inplace=True)
         self.net = nn.Sequential(
             nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, bias=bias),
             nn.BatchNorm1d(out_channels),
@@ -122,20 +106,20 @@ class ConvBNReLU1D(nn.Module):
         return self.net(x)
 
 
-# Linear Layer
-class ConvBNReLURes2D(nn.Module):
-    def __init__(self, in_channels, kernel_size=1, groups=1, res_expansion=1.0, bias=True, activation='relu'):
-        super(ConvBNReLURes2D, self).__init__()
+# Linear Layer 2
+class Linear2Layer(nn.Module):
+    def __init__(self, in_channels, kernel_size=1, groups=1, bias=True):
+        super(Linear2Layer, self).__init__()
 
-        self.act = get_activation(activation)
+        self.act = nn.ReLU(inplace=True)
         self.net1 = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=int(in_channels * res_expansion),
+            nn.Conv2d(in_channels=in_channels, out_channels=int(in_channels/2),
                     kernel_size=kernel_size, groups=groups, bias=bias),
-            nn.BatchNorm2d(int(in_channels * res_expansion)),
+            nn.BatchNorm2d(int(in_channels/2)),
             self.act
         )
         self.net2 = nn.Sequential(
-                nn.Conv2d(in_channels=int(in_channels * res_expansion), out_channels=in_channels,
+                nn.Conv2d(in_channels=int(in_channels/2), out_channels=in_channels,
                           kernel_size=kernel_size, bias=bias),
                 nn.BatchNorm2d(in_channels)
             )
@@ -151,6 +135,7 @@ class PosE_Geo(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.alpha, self.beta = alpha, beta
+   
         
     def forward(self, knn_xyz, knn_x):
         B, _, G, K = knn_xyz.shape
@@ -175,7 +160,7 @@ class PosE_Geo(nn.Module):
     
 # Parametric Encoder
 class EncP(nn.Module):  
-    def __init__(self, in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion, type):
+    def __init__(self, in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, type):
         super().__init__()
         self.input_points = input_points
         self.num_stages = num_stages
@@ -183,7 +168,7 @@ class EncP(nn.Module):
         self.alpha, self.beta = alpha, beta
 
         # Raw-point Embedding
-        self.raw_point_embed = ConvBNReLU1D(in_channels, self.embed_dim, bias=False, activation='relu')
+        self.raw_point_embed = Linear1Layer(in_channels, self.embed_dim, bias=False)
 
         self.FPS_kNN_list = nn.ModuleList() # FPS, kNN
         self.LGA_list = nn.ModuleList() # Local Geometry Aggregation
@@ -197,7 +182,7 @@ class EncP(nn.Module):
             out_dim = out_dim * dim_expansion[i]
             group_num = group_num // 2
             self.FPS_kNN_list.append(FPS_kNN(group_num, k_neighbors))
-            self.LGA_list.append(LGA(out_dim, self.alpha, self.beta, LGA_block[i], dim_expansion[i], res_expansion, type))
+            self.LGA_list.append(LGA(out_dim, self.alpha, self.beta, LGA_block[i], dim_expansion[i], type))
             self.Pooling_list.append(Pooling(out_dim))
 
 
@@ -223,32 +208,33 @@ class EncP(nn.Module):
 
 # Parametric Network for ModelNet40
 class Point_PN_mn40(nn.Module):
-    def __init__(self, in_channels=3, class_num=40, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], res_expansion=0.5, type='mn40'):
+    def __init__(self, in_channels=3, class_num=40, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], type='mn40'):
         super().__init__()
-        # Non-Parametric Encoder
-        self.EncNP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion, type)
+        # Parametric Encoder
+        self.EncP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, type)
         self.out_channel = embed_dim
         for i in dim_expansion:
             self.out_channel *= i
         self.classifier = nn.Sequential(
             nn.Linear(self.out_channel, 512),
             nn.BatchNorm1d(512),
-            get_activation('relu'),
+            nn.ReLU(inplace=True),
             nn.Dropout(0.5),
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
-            get_activation('relu'),
+            nn.ReLU(inplace=True),
             nn.Dropout(0.5),
             nn.Linear(256, class_num)
         )
+
 
     def forward(self, x):
         # xyz: point coordinates
         # x: point features
         xyz = x.permute(0, 2, 1)
 
-        # Non-Parametric Encoder
-        x = self.EncNP(xyz, x)
+        # Parametric Encoder
+        x = self.EncP(xyz, x)
 
         # Classifier
         x = self.classifier(x)
@@ -257,31 +243,32 @@ class Point_PN_mn40(nn.Module):
 
 # Parametric Network for ScanObjectNN
 class Point_PN_scan(nn.Module):
-    def __init__(self, in_channels=4, class_num=15, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], res_expansion=0.5, type='scan'):
+    def __init__(self, in_channels=4, class_num=15, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], type='scan'):
         super().__init__()
-        # Non-Parametric Encoder
-        self.EncNP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion, type)
+        # Parametric Encoder
+        self.EncP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, type)
         self.out_channel = embed_dim
         for i in dim_expansion:
             self.out_channel *= i
         self.classifier = nn.Sequential(
             nn.Linear(self.out_channel, 512),
             nn.BatchNorm1d(512),
-            get_activation('relu'),
+            nn.ReLU(inplace=True),
             nn.Dropout(0.5),
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
-            get_activation('relu'),
+            nn.ReLU(inplace=True),
             nn.Dropout(0.5),
             nn.Linear(256, class_num)
         )
+
 
     def forward(self, x, xyz):
         # xyz: point coordinates
         # x: point features
 
-        # Non-Parametric Encoder
-        x = self.EncNP(xyz, x)
+        # Parametric Encoder
+        x = self.EncP(xyz, x)
 
         # Classifier
         x = self.classifier(x)
