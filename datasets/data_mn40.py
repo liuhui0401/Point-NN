@@ -29,8 +29,6 @@ def download():
 def load_data(partition):
     download()
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    # DATA_DIR = BASE_DIR + '/../data'
-    DATA_DIR = '/home/server/zrr'
     all_data = []
     all_label = []
     for h5_name in glob.glob(os.path.join(DATA_DIR, 'modelnet40_ply_hdf5_2048', 'ply_data_%s*.h5'%partition)):
@@ -50,13 +48,11 @@ def load_data(partition):
 
 def random_point_dropout(pc, max_dropout_ratio=0.875):
     ''' batch_pc: BxNx3 '''
-    # for b in range(batch_pc.shape[0]):
-    dropout_ratio = np.random.random()*max_dropout_ratio # 0~0.875    
+    dropout_ratio = np.random.random()*max_dropout_ratio
     drop_idx = np.where(np.random.random((pc.shape[0]))<=dropout_ratio)[0]
-    # print ('use random drop', len(drop_idx))
 
     if len(drop_idx)>0:
-        pc[drop_idx,:] = pc[0,:] # set to the first point
+        pc[drop_idx,:] = pc[0,:]
     return pc
 
 
@@ -75,18 +71,19 @@ def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.02):
 
 
 class ModelNet40(Dataset):
-    def __init__(self, num_points, partition='train'):
+    def __init__(self, num_points, partition='train', type='nn'):
         self.data, self.label = load_data(partition)
         self.num_points = num_points
-        self.partition = partition   
+        self.partition = partition
+        self.type = type
         
 
     def __getitem__(self, item):
         pointcloud = self.data[item][:self.num_points]
         label = self.label[item]
         if self.partition == 'train':
-            # pointcloud = random_point_dropout(pointcloud) # open for dgcnn not for our idea  for all
-            # pointcloud = translate_pointcloud(pointcloud)
+            if self.type == 'pn':
+                pointcloud = translate_pointcloud(pointcloud)
             np.random.shuffle(pointcloud)
         return pointcloud, label
 
