@@ -10,7 +10,7 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 from torch.utils.data import DataLoader
 
-from datasets.data_scan import ScanObjectNN
+from datasets.data_pn_scan import ScanObjectNN
 import models as models
 from logger import Logger
 from pointnet2_ops import pointnet2_utils
