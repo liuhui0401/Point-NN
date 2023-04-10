@@ -59,9 +59,9 @@ def main():
         test_loader = DataLoader(ScanObjectNN(split=args.split, partition='test', num_points=args.points), 
                                     num_workers=8, batch_size=args.bz, shuffle=False, drop_last=False)
     elif args.dataset == 'mn40':
-        train_loader = DataLoader(ModelNet40(partition='train', num_points=args.points), 
+        train_loader = DataLoader(ModelNet40(partition='train', num_points=args.points, type='nn'), 
                                     num_workers=8, batch_size=args.bz, shuffle=False, drop_last=False)
-        test_loader = DataLoader(ModelNet40(partition='test', num_points=args.points), 
+        test_loader = DataLoader(ModelNet40(partition='test', num_points=args.points, type='nn'), 
                                     num_workers=8, batch_size=args.bz, shuffle=False, drop_last=False)
 
 
