@@ -64,12 +64,12 @@ Please indicate the splits at `--split` by `1,2,3` for OBJ-BG, OBJ-ONLY, and PB-
 
 For ModelNet40 dataset, just run:
 ```bash
-python run_pn_cls_mn40.py
+python run_pn_cls_mn40.py --ckpt_dir <your output path> --msg <your output file message>
 ```
 
 For ScanObjectNN dataset, just run:
 ```bash
-python run_pn_cls_scan.py
+python run_pn_cls_scan.py --ckpt_dir <your output path> --msg <your output file message>
 ```
 Please indicate the splits at `--split` by `1,2,3` for OBJ-BG, OBJ-ONLY, and PB-T50-RS, respectively.
 
