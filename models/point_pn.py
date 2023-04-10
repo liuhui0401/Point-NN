@@ -49,8 +49,9 @@ class FPS_kNN(nn.Module):
 
 # Local Geometry Aggregation
 class LGA(nn.Module):
-    def __init__(self, out_dim, alpha, beta, block_num, dim_expansion, res_expansion):
+    def __init__(self, out_dim, alpha, beta, block_num, dim_expansion, res_expansion, type):
         super().__init__()
+        self.type = type
         self.geo_extract = PosE_Geo(3, out_dim, alpha, beta)
         if dim_expansion == 1:
             expand = 2
@@ -64,15 +65,17 @@ class LGA(nn.Module):
 
     def forward(self, lc_xyz, lc_x, knn_xyz, knn_x):
 
-        # Normalize x (features) and xyz (coordinates)
-        # mean_x = lc_x.unsqueeze(dim=-2)
-        # std_x = torch.std(knn_x - mean_x)
+        # Normalization
+        if self.type == 'mn40':
+            mean_xyz = lc_xyz.unsqueeze(dim=-2)
+            std_xyz = torch.std(knn_xyz - mean_xyz)
+            knn_xyz = (knn_xyz - mean_xyz) / (std_xyz + 1e-5)
 
-        mean_xyz = lc_xyz.unsqueeze(dim=-2)
-        std_xyz = torch.std(knn_xyz - mean_xyz)
-
-        # knn_x = (knn_x - mean_x) / (std_x + 1e-5)
-        knn_xyz = (knn_xyz - mean_xyz) / (std_xyz + 1e-5)
+        elif self.type == 'scan':
+            knn_xyz = knn_xyz.permute(0, 3, 1, 2)
+            knn_xyz -= lc_xyz.permute(0, 2, 1).unsqueeze(-1)
+            knn_xyz /= torch.abs(knn_xyz).max(dim=-1, keepdim=True)[0]
+            knn_xyz = knn_xyz.permute(0, 2, 3, 1)
 
         # Feature Expansion
         B, G, K, C = knn_x.shape
@@ -97,14 +100,10 @@ class LGA(nn.Module):
 class Pooling(nn.Module):
     def __init__(self, out_dim):
         super().__init__()
-        # self.out_transform = nn.Sequential(
-        #         nn.BatchNorm1d(out_dim),
-        #         nn.GELU())
 
     def forward(self, knn_x_w):
         # Feature Aggregation (Pooling)
         lc_x = knn_x_w.max(-1)[0] + knn_x_w.mean(-1)
-        # lc_x = self.out_transform(lc_x)
         return lc_x
 
 
@@ -163,8 +162,6 @@ class PosE_Geo(nn.Module):
 
         sin_embed = torch.sin(div_embed)
         cos_embed = torch.cos(div_embed)
-        # position_embed = torch.stack([sin_embed, cos_embed], dim=5).flatten(4)
-        #position_embed = position_embed.permute(0, 1, 4, 2, 3).reshape(B, self.out_dim, G, K)
         position_embed = torch.cat([sin_embed, cos_embed], -1)
         position_embed = position_embed.permute(0, 1, 4, 2, 3).contiguous()
         position_embed = position_embed.view(B, self.out_dim, G, K)
@@ -178,7 +175,7 @@ class PosE_Geo(nn.Module):
     
 # Parametric Encoder
 class EncP(nn.Module):  
-    def __init__(self, in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion):
+    def __init__(self, in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion, type):
         super().__init__()
         self.input_points = input_points
         self.num_stages = num_stages
@@ -200,13 +197,14 @@ class EncP(nn.Module):
             out_dim = out_dim * dim_expansion[i]
             group_num = group_num // 2
             self.FPS_kNN_list.append(FPS_kNN(group_num, k_neighbors))
-            self.LGA_list.append(LGA(out_dim, self.alpha, self.beta, LGA_block[i], dim_expansion[i], res_expansion))
+            self.LGA_list.append(LGA(out_dim, self.alpha, self.beta, LGA_block[i], dim_expansion[i], res_expansion, type))
             self.Pooling_list.append(Pooling(out_dim))
 
 
     def forward(self, xyz, x):
 
         # Raw-point Embedding
+        # pdb.set_trace()
         x = self.raw_point_embed(x)
 
         # Multi-stage Hierarchy
@@ -225,10 +223,10 @@ class EncP(nn.Module):
 
 # Parametric Network for ModelNet40
 class Point_PN_mn40(nn.Module):
-    def __init__(self, in_channels=3, class_num=40, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], res_expansion=0.5):
+    def __init__(self, in_channels=3, class_num=40, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], res_expansion=0.5, type='mn40'):
         super().__init__()
         # Non-Parametric Encoder
-        self.EncNP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion)
+        self.EncNP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion, type)
         self.out_channel = embed_dim
         for i in dim_expansion:
             self.out_channel *= i
@@ -259,10 +257,10 @@ class Point_PN_mn40(nn.Module):
 
 # Parametric Network for ScanObjectNN
 class Point_PN_scan(nn.Module):
-    def __init__(self, in_channels=4, class_num=15, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], res_expansion=0.5):
+    def __init__(self, in_channels=4, class_num=15, input_points=1024, num_stages=4, embed_dim=36, k_neighbors=40, beta=100, alpha=1000, LGA_block=[2,1,1,1], dim_expansion=[2,2,2,1], res_expansion=0.5, type='scan'):
         super().__init__()
         # Non-Parametric Encoder
-        self.EncNP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion)
+        self.EncNP = EncP(in_channels, input_points, num_stages, embed_dim, k_neighbors, alpha, beta, LGA_block, dim_expansion, res_expansion, type)
         self.out_channel = embed_dim
         for i in dim_expansion:
             self.out_channel *= i
@@ -281,7 +279,6 @@ class Point_PN_scan(nn.Module):
     def forward(self, x, xyz):
         # xyz: point coordinates
         # x: point features
-        # xyz = x.permute(0, 2, 1)
 
         # Non-Parametric Encoder
         x = self.EncNP(xyz, x)
