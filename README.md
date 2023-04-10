@@ -42,7 +42,6 @@ data/
 |–– h5_files/
 |–– modelnet40_ply_hdf5_2048/
 |–– shapenetcore_partanno_segmentation_benchmark_v0_normal/
-|-- ScanObjectNN/
 ```
 
 ## Point-NN --- Very Quick Implementation 🚀
