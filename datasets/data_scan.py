@@ -21,7 +21,6 @@ def fps(data, number):
         number int
     '''
     fps_idx = pointnet2_utils.furthest_point_sample(data[:,:, :3].contiguous(), number) 
-    # fps_data = gather_operation(data.transpose(1, 2).contiguous(), fps_idx).transpose(1,2).contiguous()
     fps_data = torch.gather(data, 1, fps_idx.unsqueeze(-1).long().expand(-1, -1, data.shape[-1]))
     return fps_data
 
@@ -29,8 +28,6 @@ def fps(data, number):
 def load_scanobjectnn_data(split, partition):
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR = BASE_DIR
-    # all_data = []
-    # all_label = []
 
     if split == 1:
         DATA_DIR += '/../data/h5_files/main_split/'
@@ -48,10 +45,7 @@ def load_scanobjectnn_data(split, partition):
     data = f['data'][:].astype('float32')
     label = f['label'][:].astype('int64')
     f.close()
-    # all_data.append(data)
-    # all_label.append(label)
-    # all_data = np.concatenate(all_data, axis=0)
-    # all_label = np.concatenate(all_label, axis=0)
+
     if partition == 'test':
         precomputed_path = os.path.join(DATA_DIR, f'{partition}_objectdataset_augmentedrot_scale75_1024_fps.pkl')
         if not os.path.exists(precomputed_path):
@@ -62,7 +56,6 @@ def load_scanobjectnn_data(split, partition):
         else:
             with open(precomputed_path, 'rb') as f:
                 data = pickle.load(f)
-    # return all_data, all_label
     return data, label
 
 
@@ -187,7 +180,7 @@ class PointCloudRotation(object):
 
 
 class ScanObjectNN(Dataset):
-    def __init__(self, num_points, split=3, partition='training'):
+    def __init__(self, num_points=2048, split=3, partition='training'):
         self.data, self.label = load_scanobjectnn_data(split, partition)
         self.num_points = num_points
         self.partition = partition
