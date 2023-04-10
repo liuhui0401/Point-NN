@@ -11,7 +11,7 @@ import torch.optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
-from datasets.data_mn40 import ModelNet40
+from datasets.data_pn_mn40 import ModelNet40
 import models as models
 from logger import Logger
 from utils import progress_bar, save_model, save_args, cal_loss
