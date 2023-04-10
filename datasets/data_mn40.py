@@ -3,14 +3,7 @@ import glob
 import h5py
 import numpy as np
 from torch.utils.data import Dataset
-from collections import defaultdict
-import random
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
-
-
-def _get_data_files(list_filename):
-    with open(list_filename) as f:
-        return [line.rstrip()[5:] for line in f]
 
 
 def download():
@@ -29,6 +22,7 @@ def download():
 def load_data(partition):
     download()
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = BASE_DIR + '/../data'
     all_data = []
     all_label = []
     for h5_name in glob.glob(os.path.join(DATA_DIR, 'modelnet40_ply_hdf5_2048', 'ply_data_%s*.h5'%partition)):
