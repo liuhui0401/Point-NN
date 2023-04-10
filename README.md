@@ -59,6 +59,19 @@ python run_nn_cls.py --dataset scan --split 1
 ```
 Please indicate the splits at `--split` by `1,2,3` for OBJ-BG, OBJ-ONLY, and PB-T50-RS, respectively.
 
+## Point-PN
+### Shape Classification
+
+For ModelNet40 dataset, just run:
+```bash
+python run_pn_cls_mn40.py
+```
+
+For ScanObjectNN dataset, just run:
+```bash
+python run_pn_cls_scan.py
+```
+Please indicate the splits at `--split` by `1,2,3` for OBJ-BG, OBJ-ONLY, and PB-T50-RS, respectively.
 
 ## Citation
 ```bash
